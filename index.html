@@ -1,0 +1,331 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Free PDF Editor</title>
+    <link rel="stylesheet" href="style.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+    <script>
+      // Fallback: if CDN pdf-lib puts itself under a different name
+      window.PDFLib = window.PDFLib || window["pdf-lib"];
+    </script>
+  </head>
+  <body>
+    <header>
+      <div class="logo">PDF<span>Edit</span></div>
+      <div class="badge">100% Free</div>
+      <div class="spacer"></div>
+      <button
+        class="btn btn-primary"
+        id="downloadBtn"
+        style="width: auto; padding: 8px 20px"
+        disabled
+      >
+        ⬇ Download PDF
+      </button>
+    </header>
+
+    <div class="main-layout">
+      <aside class="sidebar">
+        <div class="sidebar-section">
+          <h3>Open PDF</h3>
+          <div class="upload-zone" id="dropZone">
+            <div class="icon">📄</div>
+            <strong>Drop PDF here</strong>
+            <p>or click to browse</p>
+          </div>
+          <input type="file" id="pdfInput" accept=".pdf" />
+        </div>
+
+        <div class="sidebar-section" id="toolsSection" style="display: none">
+          <h3>Edit Tools</h3>
+          <div class="tool-grid">
+            <button
+              class="tool-btn active"
+              id="toolSelect"
+              onclick="setTool('sel')"
+            >
+              <span class="t-icon">🖱️</span><span class="t-label">Select</span>
+            </button>
+            <button
+              class="tool-btn"
+              onclick="document.getElementById('imgInput').click()"
+            >
+              <span class="t-icon">🖼️</span
+              ><span class="t-label">Add Image</span>
+            </button>
+            <button class="tool-btn" id="toolText" onclick="setTool('txt')">
+              <span class="t-icon">✏️</span
+              ><span class="t-label">Add Text</span>
+            </button>
+            <button class="tool-btn" onclick="deleteSelected()">
+              <span class="t-icon">🗑️</span><span class="t-label">Delete</span>
+            </button>
+          </div>
+          <input type="file" id="imgInput" accept="image/*" />
+        </div>
+
+        <div class="options-panel" id="textOpts" style="display: none">
+          <div
+            style="
+              font-family: &quot;Syne&quot;, sans-serif;
+              font-size: 10px;
+              font-weight: 700;
+              letter-spacing: 1.8px;
+              text-transform: uppercase;
+              color: var(--muted);
+              margin-bottom: 10px;
+            "
+          >
+            Text Style
+          </div>
+          <div class="form-group">
+            <label>Content</label
+            ><input
+              type="text"
+              id="txContent"
+              value="Your text"
+              oninput="updateTxt()"
+            />
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Size</label
+              ><input
+                type="number"
+                id="txSize"
+                value="18"
+                min="8"
+                max="96"
+                oninput="updateTxt()"
+              />
+            </div>
+            <div class="form-group">
+              <label>Color</label
+              ><input
+                type="color"
+                id="txColor"
+                value="#000000"
+                oninput="updateTxt()"
+                style="
+                  width: 100%;
+                  height: 32px;
+                  border-radius: 6px;
+                  border: 1px solid var(--border);
+                  background: var(--surface2);
+                  cursor: pointer;
+                "
+              />
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Weight</label>
+            <select id="txWeight" oninput="updateTxt()">
+              <option value="400">Normal</option>
+              <option value="600">Semi Bold</option>
+              <option value="700">Bold</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="sidebar-section" id="pageActSec" style="display: none">
+          <h3>Page Actions</h3>
+          <button class="btn btn-ghost" onclick="openBlankModal()">
+            ➕ Insert Blank Page
+          </button>
+          <button class="btn btn-ghost" onclick="openMergeModal()">
+            🔗 Merge PDFs
+          </button>
+          <button class="btn btn-info" onclick="openSplitModal()">
+            ✂️ Split PDF
+          </button>
+        </div>
+
+        <div class="sidebar-section" id="pagesSec" style="display: none">
+          <h3>
+            Pages
+            <span
+              id="pgCount"
+              style="color: var(--accent); font-size: 11px; font-weight: 700"
+            ></span>
+          </h3>
+        </div>
+        <div class="page-thumb-list" id="pageThumbs"></div>
+      </aside>
+
+      <main class="canvas-area" id="canvasArea">
+        <div class="empty-state" id="emptyState">
+          <div class="big-icon">📑</div>
+          <h2>No PDF Loaded</h2>
+          <p>
+            Upload a PDF to start editing — add images, text, blank pages, merge
+            or split — all free.
+          </p>
+        </div>
+      </main>
+    </div>
+
+    <!-- BLANK PAGE MODAL -->
+    <div class="modal-overlay" id="blankModal">
+      <div class="modal">
+        <h2>➕ Insert Blank Page</h2>
+        <p class="sub">Add an empty white page anywhere in your PDF.</p>
+        <div class="ins-row">
+          <label>Position:</label>
+          <select id="blankPos"></select>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Width (pt)</label
+            ><input
+              type="number"
+              id="blankW"
+              value="595"
+              min="100"
+              max="2000"
+            />
+          </div>
+          <div class="form-group">
+            <label>Height (pt)</label
+            ><input
+              type="number"
+              id="blankH"
+              value="842"
+              min="100"
+              max="2000"
+            />
+          </div>
+        </div>
+        <small style="color: var(--muted); font-size: 11px"
+          >A4 = 595×842 &nbsp;|&nbsp; Letter = 612×792</small
+        >
+        <div class="modal-actions">
+          <button class="btn btn-ghost" onclick="closeModal('blankModal')">
+            Cancel
+          </button>
+          <button class="btn btn-primary" onclick="doInsertBlank()">
+            Insert Page
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MERGE MODAL -->
+    <div class="modal-overlay" id="mergeModal">
+      <div class="modal">
+        <h2>🔗 Merge PDFs</h2>
+        <p class="sub">
+          Add other PDF files to combine with your current PDF. Reorder with
+          arrows.
+        </p>
+        <div
+          style="
+            background: var(--surface2);
+            border: 1px solid var(--accent);
+            border-radius: 8px;
+            padding: 9px 12px;
+            font-size: 12px;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+          "
+        >
+          <span>📄</span>
+          <span
+            style="
+              flex: 1;
+              overflow: hidden;
+              text-overflow: ellipsis;
+              white-space: nowrap;
+            "
+            id="curPdfLabel"
+            >Current PDF</span
+          >
+          <span style="color: var(--accent); font-size: 10px; font-weight: 700"
+            >CURRENT</span
+          >
+        </div>
+        <div class="merge-list" id="mergeList">
+          <div style="font-size: 12px; color: var(--muted); padding: 6px 0">
+            No extra files yet. Add PDFs below.
+          </div>
+        </div>
+        <button
+          class="btn btn-ghost"
+          onclick="document.getElementById('mergeInput').click()"
+          style="margin-bottom: 12px"
+        >
+          + Add PDF File(s)
+        </button>
+        <input type="file" id="mergeInput" accept=".pdf" multiple />
+        <hr class="divider" />
+        <div class="form-group">
+          <label>Current PDF position</label>
+          <select id="mergePos">
+            <option value="first">First (beginning)</option>
+            <option value="last">Last (end)</option>
+          </select>
+        </div>
+        <div class="modal-actions">
+          <button class="btn btn-ghost" onclick="closeModal('mergeModal')">
+            Cancel
+          </button>
+          <button class="btn btn-primary" onclick="doMerge()">
+            Merge & Download
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- SPLIT MODAL -->
+    <div class="modal-overlay" id="splitModal">
+      <div class="modal">
+        <h2>✂️ Split PDF</h2>
+        <p class="sub">Select pages to extract into a new PDF file.</p>
+        <div style="display: flex; gap: 8px; margin-bottom: 10px">
+          <button
+            class="btn btn-ghost"
+            style="width: auto; padding: 5px 12px; font-size: 11px"
+            onclick="splitAll(true)"
+          >
+            ✓ All
+          </button>
+          <button
+            class="btn btn-ghost"
+            style="width: auto; padding: 5px 12px; font-size: 11px"
+            onclick="splitAll(false)"
+          >
+            ✗ None
+          </button>
+        </div>
+        <div class="split-list" id="splitList"></div>
+        <div class="form-group">
+          <label>Download as</label>
+          <select id="splitMode">
+            <option value="one">Selected pages → one PDF</option>
+            <option value="each">Each page → separate PDF</option>
+          </select>
+        </div>
+        <div class="modal-actions">
+          <button class="btn btn-ghost" onclick="closeModal('splitModal')">
+            Cancel
+          </button>
+          <button class="btn btn-primary" onclick="doSplit()">
+            Split & Download
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+    <div class="loading-overlay" id="loadingOverlay">
+      <div class="spinner"></div>
+      <p id="loadMsg">Processing...</p>
+    </div>
+
+    <script src="script.js"></script>
+  </body>
+</html>
